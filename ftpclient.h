@@ -1,25 +1,23 @@
-#ifndef __FTPCLIENT_H__
-#define __FTPCLIENT_H__
+    #ifndef __FTPCLIENT_H__
+    #define __FTPCLIENT_H__
 
-#include "csapp.h"
-#include "ftpserver.h"
+    #include "csapp.h"
 
-#define PORT             2121 //Port fixe du serveur FTP
-#define MAXBUF           8192 //Taille du buffer pour le transfert
-#define MAX_FILENAME_LEN 256  //Taille max du nom de fichier
+    #define PORT             2121        /* Port fixe du serveur FTP */
+    #define MAXBUF           8192        /* Taille du buffer pour le transfert */
+    #define MAX_FILENAME_LEN 256         /* Taille max du nom de fichier */
 
-/* Même définition pour le type de requête */
-typedef enum {
-    GET,
-    PUT,
-    LS,
-    BYE
-} typereq_t;
+    /* Définition de l'énumération pour les types de requête */
+    typedef enum {
+        GET = 1,  /* 1 pour GET */
+        PUT = 2,  /* 2 pour PUT */
+        LS = 3    /* 3 pour LS */
+    } typereq_t;
 
-/* Structure de la requête client */
-typedef struct {
-    int type;
-    char filename[MAX_FILENAME_LEN];
-} request_t;
+    /* Structure de la requête client */
+    typedef struct {
+        typereq_t type;
+        char filename[MAX_FILENAME_LEN];
+    } request_t;
 
-#endif 
+    #endif /* __FTPCLIENT_H__ */
