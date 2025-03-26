@@ -1,34 +1,37 @@
-.PHONY: all, clean
-
-# Disable implicit rules
-.SUFFIXES:
-
-# Keep intermediate files
-#.PRECIOUS: %.o
-
+# Nom du compilateur
 CC = gcc
-CFLAGS = -Wall -Werror
-LDFLAGS =
+# Options de compilation
+CFLAGS = -Wall
+# Bibliothèques à lier
+LIBS = -lpthread
 
-# Note: -lnsl does not seem to work on Mac OS but will
-# probably be necessary on Solaris for linking network-related functions 
-#LIBS += -lsocket -lnsl -lrt
-LIBS += -lpthread
+# Nom de l'exécutable pour le client et le serveur
+CLIENT = FTP_Client
+SERVER = FTP_Server
 
-INCLUDE = csapp.h config.h
-OBJS = csapp.o 
-INCLDIR = -I.
+# Fichiers sources
+SRCS_CLIENT = FTP_Client.c csapp.c
+SRCS_SERVER = FTP_Server.c FTP_Service.c Transfert_Fichier.c Signal_Handler.c csapp.c
 
-PROGS = ftpserver ftpclient
+# Fichiers objets générés
+OBJS_CLIENT = $(SRCS_CLIENT:.c=.o)
+OBJS_SERVER = $(SRCS_SERVER:.c=.o)
 
-all: $(PROGS)
+# Règle principale
+all: $(CLIENT) $(SERVER)
 
-%.o: %.c $(INCLUDE)
-	$(CC) $(CFLAGS) $(INCLDIR) -c -o $@ $<
-	
-%: %.o $(OBJS)
-	$(CC) -o $@ $(LDFLAGS) $^ $(LIBS)
-#	$(CC) -o $@ $(LDFLAGS) $(LIBS) $^
-	
+# Compilation du client
+$(CLIENT): $(OBJS_CLIENT)
+	$(CC) $(CFLAGS) -o $@ $(OBJS_CLIENT) $(LIBS)
+
+# Compilation du serveur
+$(SERVER): $(OBJS_SERVER)
+	$(CC) $(CFLAGS) -o $@ $(OBJS_SERVER) $(LIBS)
+
+# Compilation des fichiers sources en objets
+%.o: %.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+# Nettoyage des fichiers compilés
 clean:
-	rm -f $(PROGS) *.o
+	rm -f $(OBJS_CLIENT) $(OBJS_SERVER) $(CLIENT) $(SERVER)
