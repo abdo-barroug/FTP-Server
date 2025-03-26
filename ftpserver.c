@@ -1,44 +1,22 @@
 #include "ftpserver.h"
-
-int listenfd;  
+ 
 pid_t children[NB_PROC];
-
 
 /* Gestionnaire de SIGINT pour le processus père */
 void sigint_handler(int sig) {
-    int i;
-
     printf("SIGINT reçu. Arrêt du serveur et terminaison des processus fils...\n");
-
-    // Attendre la terminaison de tous les processus enfants
-    while (wait(NULL) > 0) {
-        // Rien à faire dans cette boucle
-    }
-
     // Libérer les processus enfants
     if (children != NULL) {
-        for (i = 0; i < NB_PROC; i++) {
+        for (int i = 0; i < NB_PROC; i++) {
             if (children[i] > 0) {
                 Kill(children[i], SIGINT);
             }
         }
     }
-
-    // Fermer les sockets et effectuer le nettoyage des ressources
-    Close(listenfd);  // Fermer le socket d'écoute
-    for (i = 0; i < NB_PROC; i++) {
-        if (children[i] > 0) {
-            // Fermer d'autres ressources si nécessaires pour chaque processus
-            Close(children[i]);  // Fermer les connexions si ouvertes
-        }
+    // Attendre la terminaison de tous les processus enfants
+    while (wait(NULL) > 0) {
+        // Rien à faire dans cette boucle
     }
-
-    // Libérer la mémoire allouée si nécessaire (si children ou autres structures nécessitent un free)
-    if (children != NULL) {
-        Free(children);  // Si la mémoire a été allouée dynamiquement
-    }
-
-    printf("Nettoyage effectué, serveur arrêté.\n");
     exit(0);
 }
 
@@ -141,6 +119,7 @@ int main() {
     socklen_t clientlen;
     struct sockaddr_in clientaddr;
     int i;
+    int listenfd;
     
     /* Création du socket d'écoute du serveur */
     listenfd = Open_listenfd(PORT);  // Initialisation de la variable globale listenfd
