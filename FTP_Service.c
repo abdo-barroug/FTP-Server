@@ -43,10 +43,20 @@ void ftp_service(int connfd, struct sockaddr_in *clientaddr) {
         }
         req.filename[filename_size] = '\0';  // Assure la terminaison
 
-        /* Traitement de la requête GET */
+        /* Traitement de la requête GET et REGET*/
         if (type == GET) {
             printf("Demande GET pour le fichier : %s\n", req.filename);
-            send_file(connfd, req.filename);
+            send_file(connfd, req.filename, 0); // transfert complet
+        } else if (type == REGET) {
+            int offset;
+            /* Lecture de l’offset envoyé par le client */
+            n = Rio_readn(connfd, &offset, sizeof(int));
+            if (n != sizeof(int)) {
+                fprintf(stderr, "Erreur lecture de l’offset\n");
+                break;
+            }
+            printf("Demande REGET pour le fichier : %s à partir de l’offset %d\n", req.filename, offset);
+            send_file(connfd, req.filename, offset); // reprise du transfert
         } else {
             fprintf(stderr, "Type de requête non supporté : %d\n", type);
             response_t resp;
@@ -54,5 +64,6 @@ void ftp_service(int connfd, struct sockaddr_in *clientaddr) {
             resp.filesize = 0;
             Rio_writen(connfd, &resp, sizeof(response_t));
         }
+
     }
 }

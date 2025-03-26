@@ -3,6 +3,6 @@
 
 #include "FTP_Structures.h"
 
-void send_file(int connfd, char *filename);
+void send_file(int connfd, char *filename, int offset);
 
 #endif

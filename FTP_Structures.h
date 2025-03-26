@@ -4,9 +4,9 @@
 #include "csapp.h"
 
 #define NB_PROC          4           /* Nombre de processus dans le pool */
-#define PORT             2121        /* Port d'écoute du serveur FTP */       
+#define PORT             99999       /* Port d'écoute du serveur FTP */       
 #define MAX_NAME_LEN 265             /* Taille max du nom de fichier */
-#define BLOCK_SIZE 8192              /* Taille du buffer pour le transfert */
+#define BLOCK_SIZE 1              /* Taille du buffer pour le transfert */
 
 /* Codes de retour */
 #define SUCCESS             0
@@ -18,7 +18,8 @@ typedef enum {
     GET = 1, /* 1 pour GET */
     PUT = 2, /* 2 pour PUT */
     LS  = 3,  /* 3 pour LS */
-    BYE = 4  /* 4 pour BYE */
+    BYE = 4,  /* 4 pour BYE */
+    REGET = 5 /* 5 pour REGET */
 } typereq_t;
 
 /* Structure de la requête client */

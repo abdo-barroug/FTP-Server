@@ -1,4 +1,5 @@
-#include "FTP_Structures.h"
+#include "FTP_Log.h"
+#include "Signal_Handler_Client.h"
 
 int main(int argc, char **argv) {
     int clientfd;
@@ -6,7 +7,6 @@ int main(int argc, char **argv) {
     char command_line[512];
     request_t req;
     int file_size;
-    char *file_buf;
     struct timeval start, end;
     double elapsed_time;
 
@@ -15,6 +15,9 @@ int main(int argc, char **argv) {
         exit(1);
     }
     host = argv[1];
+
+    /* Installer le gestionnaire SIGPIPE */
+    Signal(SIGPIPE, sigpipe_handler);
 
     /* Connexion au serveur FTP */
     clientfd = Open_clientfd(host, PORT);
@@ -35,31 +38,45 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        /* Traitement de la commande bye */
+        /* Commande de déconnexion */
         if (strcasecmp(cmd, "bye") == 0) {
             req.type = BYE;
             Rio_writen(clientfd, &req.type, sizeof(int));
             printf("Déconnexion.\n");
             break;
         }
-
-        /* Pour l'instant, seule la commande GET est supportée */
-        if (strcasecmp(cmd, "get") != 0 || nb_args != 2) {
-            fprintf(stderr, "Commande non supportée. Usage: get <filename> ou bye\n");
+        /* Commande GET pour un transfert complet */
+        else if (strcasecmp(cmd, "get") == 0 && nb_args == 2) {
+            req.type = GET;
+        }
+        /* Commande REGET pour reprendre un transfert interrompu */
+        else if (strcasecmp(cmd, "reget") == 0 && nb_args == 2) {
+            req.type = REGET;
+        }
+        else {
+            fprintf(stderr, "Commande non supportée. Usage: get <filename>, reget <filename> ou bye\n");
             continue;
         }
-        req.type = GET;
+        
+        /* Préparation de la requête */
         strncpy(req.filename, fname, MAX_NAME_LEN);
         req.filename[MAX_NAME_LEN - 1] = '\0';
 
-        /* Envoi de la requête au serveur */
         int type = req.type;
         int filename_size = strlen(req.filename);
+        /* Envoi du type de requête et du nom du fichier */
         Rio_writen(clientfd, &type, sizeof(int));
         Rio_writen(clientfd, &filename_size, sizeof(int));
         Rio_writen(clientfd, req.filename, filename_size);
 
-        /* Chronométrage et réception du fichier */
+        if (req.type == REGET) {
+            /* Lecture de l'offset stocké localement pour ce fichier */
+            int offset = get_offset_from_log(req.filename);
+            Rio_writen(clientfd, &offset, sizeof(int));
+            printf("Reget : reprise du téléchargement à partir de l'offset %d\n", offset);
+        }
+
+        /* Chronométrage et réception de la taille (restante) du fichier */
         gettimeofday(&start, NULL);
         if (Rio_readn(clientfd, &file_size, sizeof(int)) != sizeof(int)) {
             fprintf(stderr, "Erreur lecture de la taille du fichier.\n");
@@ -69,27 +86,49 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Erreur serveur : fichier non trouvé ou autre erreur.\n");
             continue;
         }
-        file_buf = Malloc(file_size);
-        if (Rio_readn(clientfd, file_buf, file_size) != file_size) {
-            fprintf(stderr, "Erreur réception du fichier.\n");
-            Free(file_buf);
-            continue;
+
+        /* Pour la réception, on va lire par blocs et mettre à jour le log */
+        char buffer[MAXBUF];
+        int received = 0;
+        int fd;
+        char client_file_path[MAX_NAME_LEN + 10];
+        snprintf(client_file_path, sizeof(client_file_path), "./client/%s", req.filename);
+        if (req.type == GET) {
+            /* Nouveau téléchargement : création/tronquage du fichier */
+            fd = Open(client_file_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        } else {
+            /* Reprise de téléchargement : ouverture en mode écriture et positionnement à la fin */
+            fd = Open(client_file_path, O_WRONLY | O_CREAT, 0644);
+            received = get_offset_from_log(req.filename);
+            lseek(fd, received, SEEK_SET);
         }
+
+        while (received < file_size) {
+            int to_read = (file_size - received > MAXBUF ? MAXBUF : file_size - received);
+            int n = Rio_readn(clientfd, buffer, to_read);
+            if (n <= 0) {
+                fprintf(stderr, "Erreur ou fin de réception prématurée\n");
+                break;
+            }
+            Rio_writen(fd, buffer, n);
+            received += n;
+            update_log(req.filename, received);
+        }
+        Close(fd);
         gettimeofday(&end, NULL);
         elapsed_time = (end.tv_sec - start.tv_sec) + ((end.tv_usec - start.tv_usec) / 1000000.0);
 
-        /* Sauvegarde du fichier dans le répertoire ./client */
-        {
-            char client_file_path[MAX_NAME_LEN + 10];
-            snprintf(client_file_path, sizeof(client_file_path), "./client/%s", req.filename);
-            int fd = Open(client_file_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            Rio_writen(fd, file_buf, file_size);
-            Close(fd);
+        if (received == file_size) {
+            printf("Transfert terminé avec succès.\n");
+            /* Optionnel : effacer le fichier log si le transfert est complet */
+            char log_filename[MAX_NAME_LEN + 10];
+            snprintf(log_filename, sizeof(log_filename), "%s.log", req.filename);
+            remove(log_filename);
+        } else {
+            printf("Transfert interrompu. %d octets reçus sur %d.\n", received, file_size);
         }
-        Free(file_buf);
-        printf("Transfer successfully complete.\n");
         printf("%d bytes received in %.2f seconds (%.2f Kbytes/s).\n",
-               file_size, elapsed_time, (file_size / 1024.0) / elapsed_time);
+               received, elapsed_time, (received / 1024.0) / elapsed_time);
     }
     Close(clientfd);
     return 0;

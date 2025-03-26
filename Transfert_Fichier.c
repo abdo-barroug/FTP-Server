@@ -1,7 +1,7 @@
 #include "Transfert_Fichier.h"
 
 /* Envoi du fichier demande par blocs */
-void send_file(int connfd, char *filename) {
+void send_file(int connfd, char *filename, int offset) {
     int filefd;
     struct stat statbuf;
     char path[MAX_NAME_LEN + 10];  // Pour "./server/" + nom de fichier
@@ -24,29 +24,44 @@ void send_file(int connfd, char *filename) {
         return;
     }
 
-    int file_size = statbuf.st_size;
-    /* Envoi de la taille totale du fichier au client */
-    Rio_writen(connfd, &file_size, sizeof(int));
+    int total_size = statbuf.st_size;
+    if (offset > total_size) {
+        fprintf(stderr, "Offset supérieur à la taille du fichier\n");
+        int error = -1;
+        Rio_writen(connfd, &error, sizeof(int));
+        close(filefd);
+        return;
+    }
 
-    /* Découpage du transfert en blocs de taille BLOCK_SIZE */
-    int nb_full_blocks = file_size / BLOCK_SIZE;       // Nombre de blocs complets
-    int remainder = file_size - (BLOCK_SIZE * nb_full_blocks);  // Le reste (inférieur à BLOCK_SIZE)
+    /* Se positionner à l'offset demandé */
+    if (lseek(filefd, offset, SEEK_SET) < 0) {
+        perror("Erreur lseek");
+        int error = -1;
+        Rio_writen(connfd, &error, sizeof(int));
+        close(filefd);
+        return;
+    }
 
-    char buffer[BLOCK_SIZE];
+    int remaining = total_size - offset;
+    /* Envoi de la taille restante du fichier au client */
+    Rio_writen(connfd, &remaining, sizeof(int));
 
-    /* Envoi des blocs complets */
+    /* Découpage du transfert en blocs de taille MAXBUF */
+    int nb_full_blocks = remaining / MAXBUF;
+    int remainder = remaining - (MAXBUF * nb_full_blocks);
+    char buffer[MAXBUF];
+
     for (int i = 0; i < nb_full_blocks; i++) {
-        ssize_t bytes_read = read(filefd, buffer, BLOCK_SIZE);
-        if (bytes_read != BLOCK_SIZE) {
+        ssize_t bytes_read = read(filefd, buffer, MAXBUF);
+        if (bytes_read != MAXBUF) {
             perror("Erreur lecture bloc complet");
             close(filefd);
             return;
         }
-        Rio_writen(connfd, buffer, BLOCK_SIZE);
-        printf("Bloc %d envoyé (%d octets)\n", i + 1, BLOCK_SIZE);
+        Rio_writen(connfd, buffer, MAXBUF);
+        printf("Bloc %d envoyé (%d octets)\n", i + 1, MAXBUF);
     }
 
-    /* Envoi du bloc final contenant le reste (s'il y en a un) */
     if (remainder > 0) {
         ssize_t bytes_read = read(filefd, buffer, remainder);
         if (bytes_read != remainder) {
@@ -55,7 +70,7 @@ void send_file(int connfd, char *filename) {
             return;
         }
         Rio_writen(connfd, buffer, remainder);
-        printf("Bloc final envoyé (%d octets)\n", remainder);  //debogage
+        printf("Bloc final envoyé (%d octets)\n", remainder);
     }
 
     close(filefd);
