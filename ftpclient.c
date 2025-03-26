@@ -1,5 +1,4 @@
 #include "ftpclient.h"
-#include "ftpserver.h"
 
 int main(int argc, char **argv) {
     int clientfd;

@@ -1,10 +1,46 @@
 #include "ftpserver.h"
-#include "ftpclient.h"
 
-#define MAX_NAME_LEN 265
-
-/* Variable globale pour le socket d'écoute */
 int listenfd;  
+pid_t children[NB_PROC];
+
+
+/* Gestionnaire de SIGINT pour le processus père */
+void sigint_handler(int sig) {
+    int i;
+
+    printf("SIGINT reçu. Arrêt du serveur et terminaison des processus fils...\n");
+
+    // Attendre la terminaison de tous les processus enfants
+    while (wait(NULL) > 0) {
+        // Rien à faire dans cette boucle
+    }
+
+    // Libérer les processus enfants
+    if (children != NULL) {
+        for (i = 0; i < NB_PROC; i++) {
+            if (children[i] > 0) {
+                Kill(children[i], SIGINT);
+            }
+        }
+    }
+
+    // Fermer les sockets et effectuer le nettoyage des ressources
+    Close(listenfd);  // Fermer le socket d'écoute
+    for (i = 0; i < NB_PROC; i++) {
+        if (children[i] > 0) {
+            // Fermer d'autres ressources si nécessaires pour chaque processus
+            Close(children[i]);  // Fermer les connexions si ouvertes
+        }
+    }
+
+    // Libérer la mémoire allouée si nécessaire (si children ou autres structures nécessitent un free)
+    if (children != NULL) {
+        Free(children);  // Si la mémoire a été allouée dynamiquement
+    }
+
+    printf("Nettoyage effectué, serveur arrêté.\n");
+    exit(0);
+}
 
 /* Service FTP : lecture de la requête et traitement */
 void ftp_service(int connfd, struct sockaddr_in *clientaddr) {
@@ -99,43 +135,6 @@ void send_file(int connfd, char *filename) {
     Free(file_buf);
 }
 
-/* Gestionnaire de SIGINT pour le processus père */
-void sigint_handler(int sig) {
-    int i;
-
-    printf("SIGINT reçu. Arrêt du serveur et terminaison des processus fils...\n");
-
-    // Attendre la terminaison de tous les processus enfants
-    while (wait(NULL) > 0) {
-        // Rien à faire dans cette boucle
-    }
-
-    // Libérer les processus enfants
-    if (children != NULL) {
-        for (i = 0; i < NB_PROC; i++) {
-            if (children[i] > 0) {
-                Kill(children[i], SIGINT);
-            }
-        }
-    }
-
-    // Fermer les sockets et effectuer le nettoyage des ressources
-    Close(listenfd);  // Fermer le socket d'écoute
-    for (i = 0; i < NB_PROC; i++) {
-        if (children[i] > 0) {
-            // Fermer d'autres ressources si nécessaires pour chaque processus
-            Close(children[i]);  // Fermer les connexions si ouvertes
-        }
-    }
-
-    // Libérer la mémoire allouée si nécessaire (si children ou autres structures nécessitent un free)
-    if (children != NULL) {
-        Free(children);  // Si la mémoire a été allouée dynamiquement
-    }
-
-    printf("Nettoyage effectué, serveur arrêté.\n");
-    exit(0);
-}
 
 int main() {
     int connfd;
