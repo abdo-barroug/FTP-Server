@@ -4,7 +4,7 @@
 void send_file(int connfd, char *filename) {
     int filefd;
     struct stat statbuf;
-    char path[MAX_FILENAME_LEN + 10];  // Pour "./server/" + nom de fichier
+    char path[MAX_NAME_LEN + 10];  // Pour "./server/" + nom de fichier
 
     /* Construction du chemin complet vers le fichier */
     snprintf(path, sizeof(path), "./server/%s", filename);

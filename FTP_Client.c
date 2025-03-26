@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
         }
 
         /* Extraction de la commande et du nom de fichier (si applicable) */
-        char cmd[10], fname[MAX_FILENAME_LEN];
+        char cmd[10], fname[MAX_NAME_LEN];
         int nb_args = sscanf(command_line, "%s %s", cmd, fname);
         if (nb_args < 1) {
             fprintf(stderr, "Commande invalide\n");
@@ -49,8 +49,8 @@ int main(int argc, char **argv) {
             continue;
         }
         req.type = GET;
-        strncpy(req.filename, fname, MAX_FILENAME_LEN);
-        req.filename[MAX_FILENAME_LEN - 1] = '\0';
+        strncpy(req.filename, fname, MAX_NAME_LEN);
+        req.filename[MAX_NAME_LEN - 1] = '\0';
 
         /* Envoi de la requête au serveur */
         int type = req.type;
@@ -80,7 +80,7 @@ int main(int argc, char **argv) {
 
         /* Sauvegarde du fichier dans le répertoire ./client */
         {
-            char client_file_path[MAX_FILENAME_LEN + 10];
+            char client_file_path[MAX_NAME_LEN + 10];
             snprintf(client_file_path, sizeof(client_file_path), "./client/%s", req.filename);
             int fd = Open(client_file_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
             Rio_writen(fd, file_buf, file_size);
