@@ -2,7 +2,7 @@
 #include "FTP_Service.h"
 #include "FTP_Structures.h"
 
-pid_t children[NB_PROC];
+pid_t children[NB_PROC]; //tableau des processus fils 
 
 
 int main() {

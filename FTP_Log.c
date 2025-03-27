@@ -29,7 +29,7 @@ void update_log(const char *filename, int offset) {
     }
     //printf("DEBUG: update_log(%s) = %d\n", filename, offset);
     
-    // Optionnel : relire immédiatement le log pour vérifier
+    // relire immédiatement le log pour vérifier
     f = fopen(log_filename, "r");
     if (f != NULL) {
         int temp = 0;

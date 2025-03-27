@@ -10,7 +10,7 @@ CLIENT = FTP_Client
 SERVER = FTP_Server
 
 # Fichiers sources
-SRCS_CLIENT = FTP_Client.c csapp.c FTP_Log.c Signal_Handler_Client.c
+SRCS_CLIENT = FTP_Client.c csapp.c Signal_Handler_Client.c FTP_Request.c FTP_Log.o
 SRCS_SERVER = FTP_Server.c FTP_Service.c Transfert_Fichier.c Signal_Handler_Server.c csapp.c
 
 # Fichiers objets générés

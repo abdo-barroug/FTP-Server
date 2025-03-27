@@ -24,7 +24,7 @@ void ftp_service(int connfd, struct sockaddr_in *clientaddr) {
 
         /* Si la commande BYE est reçue, on termine le traitement */
         if (type == BYE) {
-            printf("Commande BYE reçue, fermeture de la connexion côté serveur\n");
+            printf("Commande BYE reçue, fermeture de la connexion avec le client\n");
             break;
         }
 
