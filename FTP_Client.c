@@ -9,6 +9,7 @@ int main(int argc, char **argv) {
     int file_size;
     struct timeval start, end;
     double elapsed_time;
+    int new_received = 0;  // Pour le REGET, octets reçus durant la reprise
 
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <server_host>\n", argv[0]);
@@ -17,7 +18,7 @@ int main(int argc, char **argv) {
     host = argv[1];
 
     /* Installer le gestionnaire SIGPIPE */
-    Signal(SIGPIPE, sigpipe_handler);
+    signal(SIGPIPE, sigpipe_handler);
 
     /* Connexion au serveur FTP */
     clientfd = Open_clientfd(host, PORT);
@@ -64,19 +65,22 @@ int main(int argc, char **argv) {
 
         int type = req.type;
         int filename_size = strlen(req.filename);
-        /* Envoi du type de requête et du nom du fichier */
+        /* Envoi du type de requête, de la taille et du nom du fichier */
         Rio_writen(clientfd, &type, sizeof(int));
         Rio_writen(clientfd, &filename_size, sizeof(int));
         Rio_writen(clientfd, req.filename, filename_size);
 
+        int offset = 0;
         if (req.type == REGET) {
-            /* Lecture de l'offset stocké localement pour ce fichier */
-            int offset = get_offset_from_log(req.filename);
+            /* Lecture de l'offset stocké localement */
+            offset = get_offset_from_log(req.filename);
             Rio_writen(clientfd, &offset, sizeof(int));
             printf("Reget : reprise du téléchargement à partir de l'offset %d\n", offset);
         }
 
-        /* Chronométrage et réception de la taille (restante) du fichier */
+        /* Réception de la taille envoyée par le serveur
+           - Pour GET : taille totale du fichier.
+           - Pour REGET : nombre d'octets restants (total - offset) */
         gettimeofday(&start, NULL);
         if (Rio_readn(clientfd, &file_size, sizeof(int)) != sizeof(int)) {
             fprintf(stderr, "Erreur lecture de la taille du fichier.\n");
@@ -87,48 +91,61 @@ int main(int argc, char **argv) {
             continue;
         }
 
-        /* Pour la réception, on va lire par blocs et mettre à jour le log */
-        char buffer[MAXBUF];
-        int received = 0;
-        int fd;
+        /* Déclaration du buffer pour la réception */
+        char buffer[BLOCK_SIZE];
+
+        /* Ouverture du fichier dans le répertoire client */
         char client_file_path[MAX_NAME_LEN + 10];
         snprintf(client_file_path, sizeof(client_file_path), "./client/%s", req.filename);
+        int fd;
         if (req.type == GET) {
-            /* Nouveau téléchargement : création/tronquage du fichier */
+            /* Nouveau téléchargement : on tronque le fichier local */
             fd = Open(client_file_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-        } else {
-            /* Reprise de téléchargement : ouverture en mode écriture et positionnement à la fin */
-            fd = Open(client_file_path, O_WRONLY | O_CREAT, 0644);
-            received = get_offset_from_log(req.filename);
-            lseek(fd, received, SEEK_SET);
-        }
-
-        while (received < file_size) {
-            int to_read = (file_size - received > MAXBUF ? MAXBUF : file_size - received);
-            int n = Rio_readn(clientfd, buffer, to_read);
-            if (n <= 0) {
-                fprintf(stderr, "Erreur ou fin de réception prématurée\n");
-                break;
+            int total_received = 0;
+            while (total_received < file_size) {
+                int to_read = (file_size - total_received > BLOCK_SIZE ? BLOCK_SIZE : file_size - total_received);
+                int n = Rio_readn(clientfd, buffer, to_read);
+                if (n <= 0) {
+                    fprintf(stderr, "Erreur ou fin de réception prématurée, n = %d\n", n);
+                    break;
+                }
+                Rio_writen(fd, buffer, n);
+                total_received += n;
+                update_log(req.filename, total_received);
+                //printf("Reçu %d octets, total reçu = %d/%d\n", n, total_received, file_size);
             }
-            Rio_writen(fd, buffer, n);
-            received += n;
-            update_log(req.filename, received);
+        } else {  /* REGET */
+            /* Ouvre le fichier sans le tronquer et se positionne à l'offset */
+            fd = Open(client_file_path, O_WRONLY | O_CREAT, 0644);
+            lseek(fd, offset, SEEK_SET);
+            new_received = 0;
+            while (new_received < file_size) {
+                int to_read = (file_size - new_received > BLOCK_SIZE ? BLOCK_SIZE : file_size - new_received);
+                int n = Rio_readn(clientfd, buffer, to_read);
+                if (n <= 0) {
+                    fprintf(stderr, "Erreur ou fin de réception prématurée, n = %d\n", n);
+                    break;
+                }
+                Rio_writen(fd, buffer, n);
+                new_received += n;
+                update_log(req.filename, offset + new_received);
+                //printf("Reçu %d octets, ajouté = %d/%d\n", n, new_received, file_size);
+            }
+            printf("Reget terminé, total téléchargé = %d octets\n", offset + new_received);
         }
         Close(fd);
         gettimeofday(&end, NULL);
         elapsed_time = (end.tv_sec - start.tv_sec) + ((end.tv_usec - start.tv_usec) / 1000000.0);
 
-        if (received == file_size) {
-            printf("Transfert terminé avec succès.\n");
-            /* Optionnel : effacer le fichier log si le transfert est complet */
+        /* Pour GET, une fois le transfert complet, effacer le log */
+        if (req.type == GET) {
             char log_filename[MAX_NAME_LEN + 10];
             snprintf(log_filename, sizeof(log_filename), "%s.log", req.filename);
             remove(log_filename);
-        } else {
-            printf("Transfert interrompu. %d octets reçus sur %d.\n", received, file_size);
         }
+        int total_downloaded = (req.type == GET ? file_size : (offset + new_received));
         printf("%d bytes received in %.2f seconds (%.2f Kbytes/s).\n",
-               received, elapsed_time, (received / 1024.0) / elapsed_time);
+               total_downloaded, elapsed_time, (total_downloaded / 1024.0) / elapsed_time);
     }
     Close(clientfd);
     return 0;
