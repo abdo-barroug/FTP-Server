@@ -1,21 +1,18 @@
 #include "Signal_Handler_Server.h"
 #include "FTP_Service.h"
-#include "FTP_Structures.h"
 
 pid_t children[NB_PROC]; //tableau des processus fils 
 
 
 int main() {
-    int connfd;
+    int connfd,listenfd,i;
     socklen_t clientlen;
     struct sockaddr_in clientaddr;
-    int i;
-    int listenfd;
+    pid_t pid;
     
     /* Création du socket d'écoute du serveur */
     listenfd = Open_listenfd(PORT);  // Initialisation de la variable globale listenfd
     clientlen = sizeof(clientaddr);
-    pid_t pid;
 
     Signal(SIGINT, sigint_handler);  // Installation du gestionnaire de signal pour SIGINT
 
@@ -28,7 +25,7 @@ int main() {
             children[i] = pid;
         }
     }
-    
+
     if (i < NB_PROC) {  /* Code exécuté par un processus fils */
         while (1) {
             connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
@@ -43,4 +40,4 @@ int main() {
     }
     
     return 0;
-}
+}   
