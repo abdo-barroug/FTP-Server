@@ -47,6 +47,11 @@ int main(int argc, char **argv) {
         gettimeofday(&end, NULL);
         elapsed_time = (end.tv_sec - start.tv_sec) + ((end.tv_usec - start.tv_usec) / 1000000.0);
 
+        // Affichage du message de succès si le transfert a bien eu lieu
+        if (downloaded > 0) {
+            printf("Transfer successfully complete.\n");
+        }
+
         /* Pour GET, une fois le transfert complet, effacer le log */
         if (req.type == GET) {
             char log_filename[MAX_NAME_LEN + 10];
