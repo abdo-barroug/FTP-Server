@@ -21,7 +21,7 @@ int main() {
         if ((pid = Fork()) == 0) {  /* Processus fils : sortir de la boucle de création */
             Signal(SIGINT, SIG_DFL);  // Rétablir le comportement par défaut pour SIGINT
             break;
-        } else {       /* Processus père : continuer à forker */
+        } else {       /* Processus père : stockage du PID du fils */
             children[i] = pid;
         }
     }
@@ -30,7 +30,7 @@ int main() {
         while (1) {
             connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);
             if (connfd != -1) {
-                ftp_service(connfd, &clientaddr);  // Passer les informations du client
+                ftp_service(connfd, &clientaddr);  // Traite la requête du client
                 Close(connfd);
             }
             // En cas d'erreur sur Accept, on recommence la boucle
